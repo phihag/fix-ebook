@@ -50,16 +50,6 @@ def _pdf_find_xobject(name, reader):
     return reader._fix_ebook_pdf_dict[name]
 
 
-def add_page_labels(m):
-    page_labels = b'''
-        /PageLabels << /Nums [
-            0 << /S /D /P (Cover ) >>
-            4 << /S /D >>
-        ] >>
-    '''
-    return m.group(1) + page_labels + m.group(2)
-
-
 def find_by_style(page, match_style):
     current_state = {}
 
@@ -98,17 +88,9 @@ def find_by_style(page, match_style):
         yield cur
 
 
-def add_toc(pdf):
-    inbuf_reader = io.BytesIO(pdf)
-    reader = PyPDF2.PdfFileReader(inbuf_reader)
-
-    writer = PyPDF2.PdfFileWriter()
-    for page in reader.pages:
-        writer.addPage(page)
-
+def add_toc(reader, writer):
     writer.addBookmark('Cover', 0, fit='/FitB')
     writer.addBookmark('Inhalt', 2, fit='/FitB')
-
     h1 = None
     for page_num, page in enumerate(reader.pages):
         h1s = list(find_by_style(
@@ -122,19 +104,44 @@ def add_toc(pdf):
         for h2 in h2s:
             h2 = writer.addBookmark(h2, page_num, fit='/FitB', parent=h1)
 
+
+def change_pdf(pdf, title, author):
+    inbuf_reader = io.BytesIO(pdf)
+    reader = PyPDF2.PdfFileReader(inbuf_reader)
+
+    writer = PyPDF2.PdfFileWriter()
+    for page in reader.pages:
+        writer.addPage(page)
+
+    #add_toc(reader, writer)
+
+    class NumberTree(PyPDF2.generic.PdfObject):
+        def writeToStream(self, stream, encryption_key):
+            stream.write(b''' << /Nums [
+                0 << /P (Cover) >>
+                1 << /S /r >>
+                3 << /S /D /St 3 >>
+            ] >> ''')
+
+    pls = NumberTree()
+    writer._root_object[PyPDF2.generic.NameObject('/PageLabels')] = pls
+
+    info = PyPDF2.pdf.DocumentInformation()
+    info[PyPDF2.generic.NameObject('/Author')] = PyPDF2.generic.TextStringObject(author)
+    info[PyPDF2.generic.NameObject('/Title')] = PyPDF2.generic.TextStringObject(title)
+    writer._info = info
+
     outbuf = io.BytesIO()
     writer.write(outbuf)
     return outbuf.getvalue()
 
 
 def main():
-    _, in_fn, out_fn = sys.argv
+    _, in_fn, out_fn, title, author = sys.argv
 
     with open(in_fn, 'rb') as inf:
         pdf = inf.read()
-    pdf = add_toc(pdf)
-    # TODO set title
-    pdf = re.sub(br'(<<\s*/Type /Catalog)(.*>>)', add_page_labels, pdf)
+    pdf = change_pdf(pdf, title, author)
     with open(out_fn, 'wb') as outf:
         outf.write(pdf)
 
