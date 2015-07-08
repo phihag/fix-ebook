@@ -16,12 +16,16 @@ def _fix_text(s):
         'ã': '„',
         'Ò': '“',
         '•': 'Ä',
+        '–': 'Ö',
+        '§': 'ß',
     }
 
     for k, v in replace.items():
         s = s.replace(k, v)
 
     s = re.sub(r'\s+', ' ', s)
+    s = re.sub(r'(?<![0-9\s])-(?![0-9\s])', '', s)
+    s = re.sub(r'\s?\([0-9\s,]+\)\s*$', '', s)
 
     return s
 
@@ -102,6 +106,7 @@ def add_toc(pdf):
     for page in reader.pages:
         writer.addPage(page)
 
+    writer.addBookmark('Cover', 0, fit='/FitB')
     writer.addBookmark('Inhalt', 2, fit='/FitB')
 
     h1 = None
@@ -112,10 +117,10 @@ def add_toc(pdf):
             assert len(h1s) == 1
             h1 = writer.addBookmark(h1s[0], page_num, fit='/FitB')
 
-        # h2s = list(find_by_style(page, {b'BDC': ['/AAPL:Style', '/Pl1']}))
-        # if h2s:
-        #     for h2 in h2s:
-        #         h2 = writer.addBookmark(_fix_text(h2), page_num, fit='/FitB')
+        h2s = find_by_style(
+            page, lambda style: b'Tm' in style and 28 <= style[b'Tm'][0] <= 32)
+        for h2 in h2s:
+            h2 = writer.addBookmark(h2, page_num, fit='/FitB', parent=h1)
 
     outbuf = io.BytesIO()
     writer.write(outbuf)
