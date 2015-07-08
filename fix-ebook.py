@@ -129,7 +129,7 @@ def change_pdf(pdf, title, author):
     info = PyPDF2.pdf.DocumentInformation()
     info[PyPDF2.generic.NameObject('/Author')] = PyPDF2.generic.TextStringObject(author)
     info[PyPDF2.generic.NameObject('/Title')] = PyPDF2.generic.TextStringObject(title)
-    writer._info = _info
+    writer._info = info
 
     outbuf = io.BytesIO()
     writer.write(outbuf)
