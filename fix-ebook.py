@@ -113,7 +113,7 @@ def change_pdf(pdf, title, author):
     for page in reader.pages:
         writer.addPage(page)
 
-    #add_toc(reader, writer)
+    add_toc(reader, writer)
 
     class NumberTree(PyPDF2.generic.PdfObject):
         def writeToStream(self, stream, encryption_key):
@@ -129,7 +129,7 @@ def change_pdf(pdf, title, author):
     info = PyPDF2.pdf.DocumentInformation()
     info[PyPDF2.generic.NameObject('/Author')] = PyPDF2.generic.TextStringObject(author)
     info[PyPDF2.generic.NameObject('/Title')] = PyPDF2.generic.TextStringObject(title)
-    writer._info = info
+    writer._info = _info
 
     outbuf = io.BytesIO()
     writer.write(outbuf)
