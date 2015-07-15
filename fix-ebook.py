@@ -1,13 +1,34 @@
 #!/usr/bin/env python3
 # coding: utf-8
 
+import argparse
 import collections
 import io
+import json
+import os.path
 import re
+import shutil
 import sys
 
-sys.path.append('/home/phihag/projects/div/PyPDF2/')
-import PyPDF2
+PyPDF2 = None  # Will get imported during runtime
+
+
+def read_config(args):
+    if args.no_config:
+        return {}
+    config_fn = os.path.expanduser('~/.config/fix-ebook.json')
+    with io.open(config_fn, 'r', encoding='utf-8') as jsonf:
+        return json.load(jsonf)
+
+
+def setup_imports(config):
+    for d in config.get('add_paths', []):
+        sys.path.append(d)
+
+    global PyPDF2
+
+    import PyPDF2 as p
+    PyPDF2 = p
 
 
 def _fix_text(s):
@@ -105,7 +126,7 @@ def add_toc(reader, writer):
             h2 = writer.addBookmark(h2, page_num, fit='/FitB', parent=h1)
 
 
-def change_pdf(pdf, title, author):
+def change_pdf(pdf, args):
     inbuf_reader = io.BytesIO(pdf)
     reader = PyPDF2.PdfFileReader(inbuf_reader)
 
@@ -126,10 +147,15 @@ def change_pdf(pdf, title, author):
     pls = NumberTree()
     writer._root_object[PyPDF2.generic.NameObject('/PageLabels')] = pls
 
-    info = PyPDF2.pdf.DocumentInformation()
-    info[PyPDF2.generic.NameObject('/Author')] = PyPDF2.generic.TextStringObject(author)
-    info[PyPDF2.generic.NameObject('/Title')] = PyPDF2.generic.TextStringObject(title)
-    writer._info = info
+    if args.title is not None or args.author is not None:
+        info = PyPDF2.pdf.DocumentInformation()
+        if args.title is not None:
+            info[PyPDF2.generic.NameObject('/Author')] = (
+                PyPDF2.generic.TextStringObject(args.author))
+        if args.title is not None:
+            info[PyPDF2.generic.NameObject('/Title')] = (
+                PyPDF2.generic.TextStringObject(args.title))
+        writer._info = info
 
     outbuf = io.BytesIO()
     writer.write(outbuf)
@@ -137,12 +163,31 @@ def change_pdf(pdf, title, author):
 
 
 def main():
-    _, in_fn, out_fn, title, author = sys.argv
+    parser = argparse.ArgumentParser()
+    parser.add_argument('filename', help='File to edit')
+    parser.add_argument('--title', metavar='TITLE', help='Set document title')
+    parser.add_argument(
+        '--author', metavar='AUTHOR', help='Set document author')
+    parser.add_argument(
+        '--no-config', action='store_true', help='Ignore config file')
+    parser.add_argument(
+        '--no-backup', action='store_false',
+        dest='create_backup',
+        help='Do not create a backup (filename + .bak) of the edited file')
+    args = parser.parse_args()
 
-    with open(in_fn, 'rb') as inf:
+    config = read_config(args)
+    setup_imports(config)
+
+    if args.create_backup:
+        backup_fn = args.filename + '.bak'
+        if not os.path.exists(backup_fn):
+            shutil.copy(args.filename, backup_fn)
+
+    with open(args.filename, 'rb') as inf:
         pdf = inf.read()
-    pdf = change_pdf(pdf, title, author)
-    with open(out_fn, 'wb') as outf:
+    pdf = change_pdf(pdf, args)
+    with open(args.filename, 'wb') as outf:
         outf.write(pdf)
 
 if __name__ == '__main__':
