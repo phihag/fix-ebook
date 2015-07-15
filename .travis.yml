@@ -1,0 +1,11 @@
+language: python
+python:
+  - "3.4"
+install: 
+  - "pip install flake8"
+script:
+  - "make test"
+notifications:
+  email:
+    - phihag@phihag.de
+sudo: false
